@@ -9,15 +9,15 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
-    libraryDependencies += "de.djini" %% "xsbt-scriptstart" % "0.0.1"
+    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.0.2")
     
 Include the plugin in you project's build.sbt:
 
     seq(ScriptStartPlugin.allSettings:_*)
 
-	scriptstartMainClass	:= "my.Main"
-	
-	scriptstartVmArguments	:= Seq("-Xmx192m")
+    scriptstartMainClass    := "my.Main"
+    
+    scriptstartVmArguments  := Seq("-Xmx192m")
 
 Run the scriptstart task to get a directory containing all dependencies of 
 your project together with startscripts for linux, os x, windows and os/2.

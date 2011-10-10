@@ -26,7 +26,7 @@ object ScriptStartPlugin extends Plugin {
 		scriptstartScripts			<<= scriptsTask,
 		scriptstartOutputDirectory	<<= (Keys.crossTarget) { _ / "scriptstart" },
 		scriptstartResources		<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
-		scriptstartScriptName		<<= Keys.name.identity,
+		scriptstartScriptName		<<= Keys.name,	// .identity,
 		scriptstartVmArguments		:= Seq.empty,
 		scriptstartMainArguments	:= Seq.empty,
 		scriptstartMainClass		:= null,
