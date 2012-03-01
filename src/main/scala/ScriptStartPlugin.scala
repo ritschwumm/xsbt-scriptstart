@@ -9,28 +9,44 @@ object ScriptStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## exported
 	
+	// complete build, returns the created directory
 	val scriptstartBuild			= TaskKey[File]("scriptstart")
+	// library jars and jarred directories from the classpath 
 	val scriptstartAssets			= TaskKey[Seq[Asset]]("scriptstart-assets")
+	// generated start scripts
 	val scriptstartScripts			= TaskKey[Seq[File]]("scriptstart-scripts")
+	// where to put starts scripts, jar files and extra files
 	val scriptstartOutputDirectory	= SettingKey[File]("scriptstart-output-directory")
+	// where to get resources that should be put in the build
 	val scriptstartResources		= SettingKey[PathFinder]("scriptstart-resources")
-	val scriptstartScriptName		= SettingKey[String]("scriptstart-script-name")
-	val scriptstartVmArguments		= TaskKey[Seq[String]]("scriptstart-vm-arguments")
-	val scriptstartMainArguments	= TaskKey[Seq[String]]("scriptstart-main-arguments")
-	val scriptstartMainClass		= SettingKey[String]("scriptstart-main-class")
+	// additional resources as a task to allow inclusion of packaged wars etc.
 	val scriptstartExtraFiles		= TaskKey[Seq[File]]("scriptstart-extra-files")
+	
+	// name of the generated start scripts
+	val scriptstartScriptName		= SettingKey[String]("scriptstart-script-name")
+	// passed to the VM from the start script
+	val scriptstartVmArguments		= TaskKey[Seq[String]]("scriptstart-vm-arguments")
+	// files local to the generated directory supplied to the main class as absolute paths
+	// before other scriptstartMainArguments
+	val scriptstartMainFiles		= TaskKey[Seq[String]]("scriptstart-main-files")
+	// arguments given to the main class
+	val scriptstartMainArguments	= TaskKey[Seq[String]]("scriptstart-main-arguments")
+	// name of the class the script should run
+	val scriptstartMainClass		= SettingKey[String]("scriptstart-main-class")
 
 	lazy val allSettings	= Seq(
 		scriptstartBuild			<<= buildTask,
 		scriptstartAssets			<<= assetsTask,
 		scriptstartScripts			<<= scriptsTask,
-		scriptstartOutputDirectory	<<= (Keys.crossTarget) { _ / "scriptstart" },
-		scriptstartResources		<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
+		scriptstartOutputDirectory	<<= (Keys.crossTarget)					{ _ / "scriptstart"	},
+		scriptstartResources		<<= (Keys.sourceDirectory in Runtime)	{ _ / "scriptstart"	},
+		scriptstartExtraFiles		:= Seq.empty,
+		
 		scriptstartScriptName		<<= Keys.name,	// .identity,
 		scriptstartVmArguments		:= Seq.empty,
+		scriptstartMainFiles		:= Seq.empty,
 		scriptstartMainArguments	:= Seq.empty,
-		scriptstartMainClass		:= null,
-		scriptstartExtraFiles		:= Seq.empty
+		scriptstartMainClass		:= null
 	)
 	
 	case class Asset(main:Boolean, fresh:Boolean, jar:File) {
@@ -153,8 +169,8 @@ object ScriptStartPlugin extends Plugin {
 	//## start scripts
 	
 	private def scriptsTask:Initialize[Task[Seq[File]]] = {
-		(Keys.streams,			scriptstartAssets,	scriptstartScriptName,	scriptstartMainClass,	scriptstartVmArguments,		scriptstartMainArguments, 	scriptstartOutputDirectory) map {
-		(streams:TaskStreams,	assets:Seq[Asset],	scriptName:String,		mainClass:String,		vmArguments:Seq[String],	mainArguments:Seq[String],	outputDirectory:File) => {
+		(Keys.streams,			scriptstartAssets,	scriptstartScriptName,	scriptstartMainClass,	scriptstartVmArguments,		scriptstartMainFiles, 	scriptstartMainArguments, 	scriptstartOutputDirectory) map {
+		(streams:TaskStreams,	assets:Seq[Asset],	scriptName:String,		mainClass:String,		vmArguments:Seq[String],	mainFiles:Seq[String],	mainArguments:Seq[String],	outputDirectory:File) => {
 			streams.log info ("creating startscripts")
 			
 			require(mainClass != null, scriptstartMainClass.key.label + " must be set")
@@ -167,73 +183,81 @@ object ScriptStartPlugin extends Plugin {
 				target
 			}
 			
-			val	unixScript		= writeScript("",		unixStartScript(	vmArguments,	assetNames,	mainClass, mainArguments))
-			val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainArguments))
-			val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainArguments))
+			val	unixScript		= writeScript("",		unixStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
+			val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
+			val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
 			
 			Seq(unixScript, windowsScript, os2Script)
 		}}
 	}
 	
-	private def unixStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainArguments:Seq[String]):String	= template(
+	private def unixStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainFiles:Seq[String], mainArguments:Seq[String]):String	= template(
 		Map(
 			"vmArguments"	-> (vmArguments map unixQuote mkString " "),
-			"classPath"		-> unixQuote(classPath mkString ":"),
+			"classPath"		-> (classPath map unixQuote map { unixSoftQuote("$BASE") + "/" + _ } mkString ":"),
 			"mainClassName"	-> unixQuote(mainClassName),
+			"mainFiles"		-> (mainFiles map unixQuote map { unixSoftQuote("$BASE") + "/" + _ } mkString " "),
 			"mainArguments"	-> (mainArguments map unixQuote mkString " ")
 		),
 		strip(
 			"""
 			|	#!/bin/bash
 			|	
-			|	# change into this script's directory
+			|	# find this script's directory
 			|	if which realpath >/dev/null; then
-			|		cd "$(dirname "$(realpath "$0")")"
+			|		BASE="$(dirname "$(realpath "$0")")"
 			|	elif which readlink >/dev/null; then
+			|		pushd >/dev/null .
 			|		cur="$0"
 			|		while [ -n "$cur" ]; do
 			|			dir="$(dirname "$cur")"
 			|			[ -n "$dir" ] && cd "$dir"
 			|			cur="$(readlink "$(basename "$cur")")"
 			|		done
+			|		BASE="$PWD"
+			|		popd
 			|	elif which perl >/dev/null; then
-			|		cd "$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
+			|		BASE="$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
 			|	else
-			|		cd "$(dirname "$0")"
+			|		BASE="$(dirname "$0")"
 			|	fi
 			|	
-			|	exec java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} "$@"
+			|	exec java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} {{mainFiles}} "$@"
 			"""
 		)
 	)
-			
-	private def windowsStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainArguments:Seq[String]):String	= template(
+		
+	// TODO use a base directory like in unixStartScript
+	private def windowsStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainFiles:Seq[String], mainArguments:Seq[String]):String	= template(
 		Map(
 			"vmArguments"	-> (vmArguments map windowsQuote mkString " "),
 			"classPath"		-> windowsQuote(classPath mkString ";"),
 			"mainClassName"	-> windowsQuote(mainClassName),
-			"mainArguments"	-> (mainArguments map windowsQuote mkString " ")
+			"mainFiles"		-> (mainFiles		map windowsQuote mkString " "),
+			"mainArguments"	-> (mainArguments	map windowsQuote mkString " ")
 		),
 		windowsLF(strip(
 			"""
 			|	cd /d %~dp0%
 			|	cd ..
-			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} %*
+			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainFiles}} {{mainArguments}} %*
 			"""
 		))
 	)
-			
-	private def os2StartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainArguments:Seq[String]):String	= template(
+	
+	// TODO use a base directory like in unixStartScript
+	private def os2StartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainFiles:Seq[String], mainArguments:Seq[String]):String	= template(
 		Map(
 			"vmArguments"	-> (vmArguments map windowsQuote mkString " "),
 			"classPath"		-> windowsQuote(classPath mkString ";"),
 			"mainClassName"	-> windowsQuote(mainClassName),
-			"mainArguments"	-> (mainArguments map windowsQuote mkString " ")
+			"mainFiles"		-> (mainFiles		map windowsQuote mkString " "),
+			"mainArguments"	-> (mainArguments	map windowsQuote mkString " ")
 		),
 		windowsLF(strip(
 			"""
 			|	cd ..
-			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} %*
+			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainFiles}} {{mainArguments}} %*
 			"""
 		))
 	) 
@@ -254,6 +278,9 @@ object ScriptStartPlugin extends Plugin {
 			
 	private def unixQuote(s:String):String	= 
 			"'" + (s replace ("'", "\\'")) + "'"
+			
+	private def unixSoftQuote(s:String):String	= 
+			"\"" + (s replace ("\"", "\\\"")) + "\""
 			
 	private def windowsQuote(s:String):String	= 
 			"\"" + (s replace ("\"", "\"\"")) + "\""
