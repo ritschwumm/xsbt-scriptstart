@@ -26,13 +26,13 @@ object ScriptStartPlugin extends Plugin {
 	val scriptstartScriptName		= SettingKey[String]("scriptstart-script-name")
 	// passed to the VM from the start script
 	val scriptstartVmArguments		= TaskKey[Seq[String]]("scriptstart-vm-arguments")
+	// name of the class the script should run
+	val scriptstartMainClass		= SettingKey[String]("scriptstart-main-class")
 	// files local to the generated directory supplied to the main class as absolute paths
 	// before other scriptstartMainArguments
 	val scriptstartMainFiles		= TaskKey[Seq[String]]("scriptstart-main-files")
 	// arguments given to the main class
 	val scriptstartMainArguments	= TaskKey[Seq[String]]("scriptstart-main-arguments")
-	// name of the class the script should run
-	val scriptstartMainClass		= SettingKey[String]("scriptstart-main-class")
 
 	lazy val allSettings	= Seq(
 		scriptstartBuild			<<= buildTask,
@@ -44,9 +44,9 @@ object ScriptStartPlugin extends Plugin {
 		
 		scriptstartScriptName		<<= Keys.name,	// .identity,
 		scriptstartVmArguments		:= Seq.empty,
+		scriptstartMainClass		:= null,
 		scriptstartMainFiles		:= Seq.empty,
-		scriptstartMainArguments	:= Seq.empty,
-		scriptstartMainClass		:= null
+		scriptstartMainArguments	:= Seq.empty
 	)
 	
 	case class Asset(main:Boolean, fresh:Boolean, jar:File) {
@@ -56,68 +56,92 @@ object ScriptStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## tasks
 	
-	private def buildTask:Initialize[Task[File]] = {
-		(Keys.streams,			scriptstartAssets,	scriptstartScripts,	scriptstartResources,				scriptstartExtraFiles,	scriptstartOutputDirectory) map {
-		(streams:TaskStreams,	assets:Seq[Asset],	scripts:Seq[File],	scriptstartResources:PathFinder,	extraFiles:Seq[File],	outputDirectory:File) => {
-			// TODO check
-			// Keys.defaultExcludes
-			streams.log info ("copying resources")
-			val resourcesToCopy	=
-					for {
-						dir		<- scriptstartResources.get
-						file	<- dir.***.get
-						target	= Path.rebase(dir, outputDirectory)(file).get
-					}
-					yield (file, target)
-			val resourcesCopied	= IO copy resourcesToCopy
-			
-			streams.log info ("copying extra files")
-			val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
-			
-			streams.log info ("cleaning up")
-			val allFiles	= (outputDirectory * "*").get.toSet
-			val assetJars	= assets map { _.jar }
-			val obsolete	= allFiles -- assetJars -- scripts -- resourcesCopied -- extraCopied
-			IO delete obsolete
-			
-			outputDirectory
-		}}
+	private def buildTask:Initialize[Task[File]] = (
+		Keys.streams,
+		scriptstartAssets,	
+		scriptstartScripts,
+		scriptstartResources,				
+		scriptstartExtraFiles,
+		scriptstartOutputDirectory
+	) map buildTaskImpl
+	
+	private def buildTaskImpl(
+		streams:TaskStreams,	
+		assets:Seq[Asset],
+		scripts:Seq[File],
+		scriptstartResources:PathFinder,
+		extraFiles:Seq[File],
+		outputDirectory:File
+	):File = {
+		// TODO check
+		// Keys.defaultExcludes
+		streams.log info ("copying resources")
+		val resourcesToCopy	=
+				for {
+					dir		<- scriptstartResources.get
+					file	<- dir.***.get
+					target	= Path.rebase(dir, outputDirectory)(file).get
+				}
+				yield (file, target)
+		val resourcesCopied	= IO copy resourcesToCopy
+		
+		streams.log info ("copying extra files")
+		val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
+		
+		streams.log info ("cleaning up")
+		val allFiles	= (outputDirectory * "*").get.toSet
+		val assetJars	= assets map { _.jar }
+		val obsolete	= allFiles -- assetJars -- scripts -- resourcesCopied -- extraCopied
+		IO delete obsolete
+		
+		outputDirectory
 	}
 	
 	//------------------------------------------------------------------------------
 	//## jar files
 	
-	private def assetsTask:Initialize[Task[Seq[Asset]]]	= {
+	private def assetsTask:Initialize[Task[Seq[Asset]]]	= (
 		// BETTER use dependencyClasspath and products instead of fullClasspath?
 		// BETTER use exportedProducts instead of products?
-		(Keys.streams,			Keys.products in Runtime,	Keys.fullClasspath in Runtime,	Keys.cacheDirectory,	scriptstartOutputDirectory) map {
-		(streams:TaskStreams,	products,					fullClasspath,					cacheDirectory:File,	outputDirectory:File) => {
-			// NOTE for directories, the package should be named after the artifact they come from
-			val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
-			
-			streams.log info ("creating directory jars")
-			val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
-				val main	= products contains source
-				val cache	= cacheDirectory / scriptstartAssets.key.label / index.toString
-				val target	= outputDirectory / (index + ".jar")
-				val fresh	= jarDirectory(source, cache, target)
-				Asset(main, fresh, target)
-			}
-			
-			streams.log info ("copying library jars")
-			val archiveAssets	= archives map { source =>
-				val main	= products contains source
-				val	target	= outputDirectory / source.getName 
-				val fresh	= copyArchive(source, target)
-				Asset(main, fresh, target)
-			}
-			
-			val assets	= archiveAssets ++ directoryAssets
-			val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
-			streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
-			
-			assets
-		}}
+		Keys.streams,
+		Keys.products in Runtime,
+		Keys.fullClasspath in Runtime,
+		Keys.cacheDirectory,
+		scriptstartOutputDirectory
+	) map assetsTaskImpl
+	
+	private def assetsTaskImpl(
+		streams:TaskStreams,
+		products:Seq[File],
+		fullClasspath:Classpath,
+		cacheDirectory:File,
+		outputDirectory:File
+	):Seq[Asset]	= {
+		// NOTE for directories, the package should be named after the artifact they come from
+		val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
+		
+		streams.log info ("creating directory jars")
+		val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
+			val main	= products contains source
+			val cache	= cacheDirectory / scriptstartAssets.key.label / index.toString
+			val target	= outputDirectory / (index + ".jar")
+			val fresh	= jarDirectory(source, cache, target)
+			Asset(main, fresh, target)
+		}
+		
+		streams.log info ("copying library jars")
+		val archiveAssets	= archives map { source =>
+			val main	= products contains source
+			val	target	= outputDirectory / source.getName 
+			val fresh	= copyArchive(source, target)
+			Asset(main, fresh, target)
+		}
+		
+		val assets	= archiveAssets ++ directoryAssets
+		val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
+		streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
+		
+		assets
 	}
 	
 	private def copyArchive(sourceFile:File, targetFile:File):Boolean	= {
@@ -168,27 +192,44 @@ object ScriptStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## start scripts
 	
-	private def scriptsTask:Initialize[Task[Seq[File]]] = {
-		(Keys.streams,			scriptstartAssets,	scriptstartScriptName,	scriptstartMainClass,	scriptstartVmArguments,		scriptstartMainFiles, 	scriptstartMainArguments, 	scriptstartOutputDirectory) map {
-		(streams:TaskStreams,	assets:Seq[Asset],	scriptName:String,		mainClass:String,		vmArguments:Seq[String],	mainFiles:Seq[String],	mainArguments:Seq[String],	outputDirectory:File) => {
-			streams.log info ("creating startscripts")
-			
-			require(mainClass != null, scriptstartMainClass.key.label + " must be set")
-			
-			val assetNames	= assets map { _.jar.getName }
-			
-			def writeScript(suffix:String, content:String):File = {
-				var	target	= outputDirectory / (scriptName + suffix)
-				IO write (target, content)
-				target
-			}
-			
-			val	unixScript		= writeScript("",		unixStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-			val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-			val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-			
-			Seq(unixScript, windowsScript, os2Script)
-		}}
+	private def scriptsTask:Initialize[Task[Seq[File]]]	= (
+		Keys.streams,
+		scriptstartAssets,
+		scriptstartScriptName,
+		scriptstartMainClass,
+		scriptstartVmArguments,
+		scriptstartMainFiles,
+		scriptstartMainArguments,
+		scriptstartOutputDirectory
+	) map scriptsTaskImpl
+		
+	private def scriptsTaskImpl(
+		streams:TaskStreams,
+		assets:Seq[Asset],
+		scriptName:String,		
+		mainClass:String,
+		vmArguments:Seq[String],
+		mainFiles:Seq[String],
+		mainArguments:Seq[String],
+		outputDirectory:File
+	):Seq[File]	= {
+		streams.log info ("creating startscripts")
+		
+		require(mainClass != null, scriptstartMainClass.key.label + " must be set")
+		
+		val assetNames	= assets map { _.jar.getName }
+		
+		def writeScript(suffix:String, content:String):File = {
+			var	target	= outputDirectory / (scriptName + suffix)
+			IO write (target, content)
+			target
+		}
+		
+		val	unixScript		= writeScript("",		unixStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
+		val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
+		val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
+		
+		Seq(unixScript, windowsScript, os2Script)
 	}
 	
 	private def unixStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainFiles:Seq[String], mainArguments:Seq[String]):String	= template(
