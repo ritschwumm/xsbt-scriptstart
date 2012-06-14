@@ -4,8 +4,8 @@ To build this code, get and install SBT from
     https://github.com/harrah/xsbt
 
 Build and publish the plugin:
-    git clone git@github.com:ritschwumm/xstb-scriptstart.git
-    cd xstb-scriptstart
+    git clone git@github.com:ritschwumm/xsbt-scriptstart.git
+    cd xsbt-scriptstart
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
