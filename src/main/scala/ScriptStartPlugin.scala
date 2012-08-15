@@ -5,14 +5,14 @@ import Keys.TaskStreams
 import Project.Initialize
 import classpath.ClasspathUtilities
 
+import ClasspathPlugin._
+
 object ScriptStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## exported
 	
 	// complete build, returns the created directory
 	val scriptstartBuild			= TaskKey[File]("scriptstart")
-	// library jars and jarred directories from the classpath 
-	val scriptstartAssets			= TaskKey[Seq[Asset]]("scriptstart-assets")
 	// generated start scripts
 	val scriptstartScripts			= TaskKey[Seq[File]]("scriptstart-scripts")
 	// where to put starts scripts, jar files and extra files
@@ -34,9 +34,8 @@ object ScriptStartPlugin extends Plugin {
 	// arguments given to the main class
 	val scriptstartMainArguments	= TaskKey[Seq[String]]("scriptstart-main-arguments")
 
-	lazy val allSettings	= Seq(
+	lazy val scriptstartSettings	= classpathSettings ++ Seq(
 		scriptstartBuild			<<= buildTask,
-		scriptstartAssets			<<= assetsTask,
 		scriptstartScripts			<<= scriptsTask,
 		scriptstartOutputDirectory	<<= (Keys.crossTarget)					{ _ / "scriptstart"	},
 		scriptstartResources		<<= (Keys.sourceDirectory in Runtime)	{ _ / "scriptstart"	},
@@ -44,21 +43,17 @@ object ScriptStartPlugin extends Plugin {
 		
 		scriptstartScriptName		<<= Keys.name,	// .identity,
 		scriptstartVmArguments		:= Seq.empty,
-		scriptstartMainClass		:= null,
+		scriptstartMainClass		:= null,		// TODO ugly
 		scriptstartMainFiles		:= Seq.empty,
 		scriptstartMainArguments	:= Seq.empty
 	)
-	
-	case class Asset(main:Boolean, fresh:Boolean, jar:File) {
-		val name:String	= jar.getName
-	}
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
 	private def buildTask:Initialize[Task[File]] = (
 		Keys.streams,
-		scriptstartAssets,	
+		classpathAssets,	
 		scriptstartScripts,
 		scriptstartResources,				
 		scriptstartExtraFiles,
@@ -73,128 +68,46 @@ object ScriptStartPlugin extends Plugin {
 		extraFiles:Seq[File],
 		outputDirectory:File
 	):File = {
+		streams.log info ("copying assets")
+		val assetsToCopy	=
+				for {
+					asset	<- assets
+					source	= asset.jar
+					target	= outputDirectory / asset.name
+				}
+				yield (source, target)
+		val assetsCopied	= IO copy assetsToCopy
+		
 		// TODO check
 		// Keys.defaultExcludes
 		streams.log info ("copying resources")
 		val resourcesToCopy	=
 				for {
 					dir		<- scriptstartResources.get
-					file	<- dir.***.get
-					target	= Path.rebase(dir, outputDirectory)(file).get
+					source	<- dir.***.get
+					target	= Path rebase (dir, outputDirectory) apply source get
 				}
-				yield (file, target)
+				yield (source, target)
 		val resourcesCopied	= IO copy resourcesToCopy
 		
 		streams.log info ("copying extra files")
-		val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
+		val extrasToCopy	= extraFiles map { it => (it, outputDirectory / it.getName) }
+		val extrasCopied	= IO copy extrasToCopy
 		
 		streams.log info ("cleaning up")
 		val allFiles	= (outputDirectory * "*").get.toSet
-		val assetJars	= assets map { _.jar }
-		val obsolete	= allFiles -- assetJars -- scripts -- resourcesCopied -- extraCopied
+		val obsolete	= allFiles -- scripts -- assetsCopied -- resourcesCopied -- extrasCopied
 		IO delete obsolete
 		
 		outputDirectory
 	}
 	
 	//------------------------------------------------------------------------------
-	//## jar files
-	
-	private def assetsTask:Initialize[Task[Seq[Asset]]]	= (
-		// BETTER use dependencyClasspath and products instead of fullClasspath?
-		// BETTER use exportedProducts instead of products?
-		Keys.streams,
-		Keys.products in Runtime,
-		Keys.fullClasspath in Runtime,
-		Keys.cacheDirectory,
-		scriptstartOutputDirectory
-	) map assetsTaskImpl
-	
-	private def assetsTaskImpl(
-		streams:TaskStreams,
-		products:Seq[File],
-		fullClasspath:Classpath,
-		cacheDirectory:File,
-		outputDirectory:File
-	):Seq[Asset]	= {
-		// NOTE for directories, the package should be named after the artifact they come from
-		val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
-		
-		streams.log info ("creating directory jars")
-		val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
-			val main	= products contains source
-			val cache	= cacheDirectory / scriptstartAssets.key.label / index.toString
-			val target	= outputDirectory / (index + ".jar")
-			val fresh	= jarDirectory(source, cache, target)
-			Asset(main, fresh, target)
-		}
-		
-		streams.log info ("copying library jars")
-		val archiveAssets	= archives map { source =>
-			val main	= products contains source
-			val	target	= outputDirectory / source.getName 
-			val fresh	= copyArchive(source, target)
-			Asset(main, fresh, target)
-		}
-		
-		val assets	= archiveAssets ++ directoryAssets
-		val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
-		streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
-		
-		assets
-	}
-	
-	private def copyArchive(sourceFile:File, targetFile:File):Boolean	= {
-		val fresh	= !targetFile.exists || sourceFile.lastModified > targetFile.lastModified
-		if (fresh) {
-			IO copyFile (sourceFile, targetFile)
-		}
-		fresh
-	}
-	
-	private def jarDirectory(sourceDir:File, cacheDir:File, targetFile:File):Boolean	= {
-		import Predef.{conforms => _, _}
-		import collection.JavaConversions._
-		import Types.:+:
-		
-		import sbinary.{DefaultProtocol,Format}
-		import DefaultProtocol.{FileFormat, immutableMapFormat, StringFormat, UnitFormat}
-		import Cache.{defaultEquiv, hConsCache, hNilCache, streamFormat, wrapIn}
-		import Tracked.{inputChanged, outputChanged}
-		import FileInfo.exists
-		import FilesInfo.lastModified
-		
-		implicit def stringMapEquiv: Equiv[Map[File, String]] = defaultEquiv
-		
-		val sources		= (sourceDir ** -DirectoryFilter get) x (Path relativeTo sourceDir)
-		
-		def makeJar(sources:Seq[(File, String)], jar:File) {
-			IO delete jar
-			IO zip (sources, jar)
-		}
-		
-		val cachedMakeJar = inputChanged(cacheDir / "inputs") { (inChanged, inputs:(Map[File, String] :+: FilesInfo[ModifiedFileInfo] :+: HNil)) =>
-			val sources :+: _ :+: HNil = inputs
-			outputChanged(cacheDir / "output") { (outChanged, jar:PlainFileInfo) =>
-				val fresh	= inChanged || outChanged
-				if (fresh) {
-					makeJar(sources.toSeq, jar.file)
-				}
-				fresh
-			}
-		}
-		val sourcesMap		= sources.toMap
-		val inputs			= sourcesMap :+: lastModified(sourcesMap.keySet.toSet) :+: HNil
-		val fresh:Boolean	= cachedMakeJar(inputs)(() => exists(targetFile))
-		fresh
-	}
-
-	//------------------------------------------------------------------------------
 	//## start scripts
 	
 	private def scriptsTask:Initialize[Task[Seq[File]]]	= (
 		Keys.streams,
-		scriptstartAssets,
+		classpathAssets,
 		scriptstartScriptName,
 		scriptstartMainClass,
 		scriptstartVmArguments,
@@ -229,6 +142,8 @@ object ScriptStartPlugin extends Plugin {
 		val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
 		val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
 		
+		val scripts	= Seq(unixScript,windowsScript,os2Script)
+		scripts foreach { _ setExecutable (true, false) }
 		Seq(unixScript, windowsScript, os2Script)
 	}
 	
