@@ -18,9 +18,11 @@ Include the plugin in you project's build.sbt:
 
     scriptstartSettings
 
-    scriptstartMainClass    := "my.Main"
-    
-    scriptstartVmArguments  := Seq("-Xmx192m")
+    scriptstartScriptConf	:= Seq(ScriptConf(
+    	scriptName	= "my", 
+    	mainClass	= "my.Main",
+    	vmArguments	= Seq("-Xmx192m")
+    ))
 
 Run the scriptstart task to get a directory containing all dependencies of 
 your project together with startscripts for linux, os x, windows and os/2.

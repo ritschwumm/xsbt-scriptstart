@@ -22,17 +22,22 @@ object ScriptStartPlugin extends Plugin {
 	// additional resources as a task to allow inclusion of packaged wars etc.
 	val scriptstartExtraFiles		= TaskKey[Seq[File]]("scriptstart-extra-files")
 	
-	// name of the generated start scripts
-	val scriptstartScriptName		= SettingKey[String]("scriptstart-script-name")
-	// passed to the VM from the start script
-	val scriptstartVmArguments		= TaskKey[Seq[String]]("scriptstart-vm-arguments")
-	// name of the class the script should run
-	val scriptstartMainClass		= SettingKey[String]("scriptstart-main-class")
-	// files local to the generated directory supplied to the main class as absolute paths
-	// before other scriptstartMainArguments
-	val scriptstartMainFiles		= TaskKey[Seq[String]]("scriptstart-main-files")
-	// arguments given to the main class
-	val scriptstartMainArguments	= TaskKey[Seq[String]]("scriptstart-main-arguments")
+	case class ScriptConf(
+		// name of the generated start scripts
+		scriptName:String,
+		// name of the class the script should run
+		mainClass:String,
+		// passed to the VM from the start script
+		vmArguments:Seq[String]		= Seq.empty,
+		// files local to the generated directory supplied to the main class as absolute paths
+		// before other scriptstartMainArguments
+		mainFiles:Seq[String]		= Seq.empty,
+		// arguments given to the main class
+		mainArguments:Seq[String]	= Seq.empty
+	)
+	
+	// one or more startscripts to be generated
+	val scriptstartScriptConf	= TaskKey[Seq[ScriptConf]]("scriptstart-script-conf")
 
 	lazy val scriptstartSettings	= classpathSettings ++ Seq(
 		scriptstartBuild			<<= buildTask,
@@ -40,12 +45,7 @@ object ScriptStartPlugin extends Plugin {
 		scriptstartOutputDirectory	<<= (Keys.crossTarget)					{ _ / "scriptstart"	},
 		scriptstartResources		<<= (Keys.sourceDirectory in Runtime)	{ _ / "scriptstart"	},
 		scriptstartExtraFiles		:= Seq.empty,
-		
-		scriptstartScriptName		<<= Keys.name,	// .identity,
-		scriptstartVmArguments		:= Seq.empty,
-		scriptstartMainClass		:= null,		// TODO ugly
-		scriptstartMainFiles		:= Seq.empty,
-		scriptstartMainArguments	:= Seq.empty
+		scriptstartScriptConf		:= Seq.empty
 	)
 	
 	//------------------------------------------------------------------------------
@@ -108,43 +108,34 @@ object ScriptStartPlugin extends Plugin {
 	private def scriptsTask:Initialize[Task[Seq[File]]]	= (
 		Keys.streams,
 		classpathAssets,
-		scriptstartScriptName,
-		scriptstartMainClass,
-		scriptstartVmArguments,
-		scriptstartMainFiles,
-		scriptstartMainArguments,
+		scriptstartScriptConf,
 		scriptstartOutputDirectory
 	) map scriptsTaskImpl
 		
 	private def scriptsTaskImpl(
 		streams:TaskStreams,
 		assets:Seq[Asset],
-		scriptName:String,		
-		mainClass:String,
-		vmArguments:Seq[String],
-		mainFiles:Seq[String],
-		mainArguments:Seq[String],
+		scriptConf:Seq[ScriptConf],		
 		outputDirectory:File
 	):Seq[File]	= {
 		streams.log info ("creating startscripts")
-		
-		require(mainClass != null, scriptstartMainClass.key.label + " must be set")
-		
-		val assetNames	= assets map { _.jar.getName }
-		
-		def writeScript(suffix:String, content:String):File = {
-			var	target	= outputDirectory / (scriptName + suffix)
-			IO write (target, content)
-			target
+		scriptConf flatMap { conf =>
+			val assetNames	= assets map { _.jar.getName }
+			
+			def writeScript(suffix:String, content:String):File = {
+				var	target	= outputDirectory / (conf.scriptName + suffix)
+				IO write (target, content)
+				target
+			}
+			
+			val	unixScript		= writeScript("",		unixStartScript(	conf.vmArguments,	assetNames,	conf.mainClass, conf.mainFiles, conf.mainArguments))
+			val windowsScript	= writeScript(".bat",	windowsStartScript(	conf.vmArguments,	assetNames,	conf.mainClass, conf.mainFiles, conf.mainArguments))
+			val os2Script		= writeScript(".cmd",	os2StartScript(		conf.vmArguments,	assetNames,	conf.mainClass, conf.mainFiles, conf.mainArguments))
+			
+			val scripts	= Seq(unixScript,windowsScript,os2Script)
+			scripts foreach { _ setExecutable (true, false) }
+			Seq(unixScript, windowsScript, os2Script)
 		}
-		
-		val	unixScript		= writeScript("",		unixStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-		val windowsScript	= writeScript(".bat",	windowsStartScript(	vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-		val os2Script		= writeScript(".cmd",	os2StartScript(		vmArguments,	assetNames,	mainClass, mainFiles, mainArguments))
-		
-		val scripts	= Seq(unixScript,windowsScript,os2Script)
-		scripts foreach { _ setExecutable (true, false) }
-		Seq(unixScript, windowsScript, os2Script)
 	}
 	
 	private def unixStartScript(vmArguments:Seq[String], classPath:Seq[String], mainClassName:String, mainFiles:Seq[String], mainArguments:Seq[String]):String	= template(
