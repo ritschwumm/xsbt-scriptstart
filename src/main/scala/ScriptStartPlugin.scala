@@ -186,7 +186,6 @@ object ScriptStartPlugin extends Plugin {
 		windowsLF(strip(
 			"""
 			|	cd /d %~dp0%
-			|	cd ..
 			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainFiles}} {{mainArguments}} %*
 			"""
 		))
@@ -203,7 +202,6 @@ object ScriptStartPlugin extends Plugin {
 		),
 		windowsLF(strip(
 			"""
-			|	cd ..
 			|	java {{vmArguments}} -cp {{classPath}} {{mainClassName}} {{mainFiles}} {{mainArguments}} %*
 			"""
 		))
