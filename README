@@ -11,14 +11,14 @@ Build and publish the plugin:
     cd xsbt-scriptstart
     sbt publish-local
     
-Add the plugin to your project in project/plugins/build.sbt:
-    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.0.4")
+Add the plugin to your project in project/plugins.sbt:
+    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.9.0")
     
 Include the plugin in you project's build.sbt:
 
     scriptstartSettings
 
-    scriptstartScriptConf	:= Seq(ScriptConf(
+    scriptstartConfigs	:= Seq(ScriptConfig(
     	scriptName	= "my", 
     	mainClass	= "my.Main",
     	vmArguments	= Seq("-Xmx192m")
