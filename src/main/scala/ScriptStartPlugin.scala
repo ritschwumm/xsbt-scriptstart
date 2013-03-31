@@ -53,7 +53,7 @@ object ScriptStartPlugin extends Plugin {
 	
 	private def buildTaskImpl(
 		streams:TaskStreams,	
-		assets:Seq[Asset],
+		assets:Seq[ClasspathAsset],
 		configs:Seq[ScriptConfig],
 		extras:Seq[(File,String)],
 		output:File

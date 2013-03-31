@@ -1,10 +1,10 @@
 A startscript plugin for xsbt
 
 To build this code, get and install SBT from 
-    https://github.com/harrah/xsbt
+    https://github.com/sbt/sbt
 
 Get and install this plugin before building:
-	https://github.com/ritschwumm/xsbt-classpath
+    https://github.com/ritschwumm/xsbt-classpath
 
 Build and publish the plugin:
     git clone git@github.com:ritschwumm/xsbt-scriptstart.git
@@ -12,16 +12,16 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.9.0")
+    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.10.0")
     
 Include the plugin in you project's build.sbt:
 
     scriptstartSettings
 
-    scriptstartConfigs	:= Seq(ScriptConfig(
-    	scriptName	= "my", 
-    	mainClass	= "my.Main",
-    	vmArguments	= Seq("-Xmx192m")
+    scriptstartConfigs  := Seq(ScriptConfig(
+        scriptName  = "my", 
+        mainClass   = "my.Main",
+        vmArguments = Seq("-Xmx192m")
     ))
 
 Run the scriptstart task to get a directory containing all dependencies of 
