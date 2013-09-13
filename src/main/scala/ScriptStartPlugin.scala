@@ -27,23 +27,25 @@ object ScriptStartPlugin extends Plugin {
 	// one or more startscripts to be generated
 	val scriptstartConfigs	= TaskKey[Seq[ScriptConfig]]("scriptstart-configs")
 	// additional resources as a task to allow inclusion of packaged wars etc.
-	val scriptstartExtras	= TaskKey[Seq[(File,String)]]("scriptstart-extras")
+	val scriptstartExtras	= TaskKey[Traversable[(File,String)]]("scriptstart-extras")
 	// where to put starts scripts, jar files and extra files
 	val scriptstartOutput	= SettingKey[File]("scriptstart-output")
 
-	lazy val scriptstartSettings	= classpathSettings ++ Seq(
-		scriptstartBuild	<<= buildTask,
-		scriptstartConfigs	:= Seq.empty,
-		scriptstartExtras	:= Seq.empty,
-		scriptstartOutput	<<= Keys.crossTarget { _ / "scriptstart" }
-	)
+	lazy val scriptstartSettings:Seq[Def.Setting[_]]	= 
+			classpathSettings ++
+			Seq(
+				scriptstartBuild	<<= buildTask,
+				scriptstartConfigs	:= Seq.empty,
+				scriptstartExtras	:= Seq.empty,
+				scriptstartOutput	<<= Keys.crossTarget { _ / "scriptstart" }
+			)
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
 	private val libName	= "lib"
 	
-	private def buildTask:Initialize[Task[File]] = (
+	private def buildTask:Def.Initialize[Task[File]] = (
 		Keys.streams,
 		classpathAssets,
 		scriptstartConfigs,
@@ -54,12 +56,14 @@ object ScriptStartPlugin extends Plugin {
 	private def buildTaskImpl(
 		streams:TaskStreams,	
 		assets:Seq[ClasspathAsset],
-		configs:Seq[ScriptConfig],
-		extras:Seq[(File,String)],
+		configs:Traversable[ScriptConfig],
+		extras:Traversable[(File,String)],
 		output:File
 	):File = {
-		streams.log info ("copying assets")
+		streams.log info ("building scriptstart app in " + output)
+		
 		val assetDir	= output / libName
+		streams.log info ("copying assets to " + assetDir)
 		assetDir.mkdirs()
 		val assetsToCopy	=
 				for {
@@ -70,11 +74,11 @@ object ScriptStartPlugin extends Plugin {
 				yield (source, target)
 		val assetsCopied	= IO copy assetsToCopy
 		
-		streams.log info ("copying extras")
+		streams.log info ("copying extras to " + output)
 		val extrasToCopy	= extras map { case (file,path) => (file, output / path) }
 		val extrasCopied	= IO copy extrasToCopy
 		
-		streams.log info ("creating scripts")
+		streams.log info ("creating scripts in " + output)
 		val scripts	= configs flatMap { config =>
 			val assetNames	= assets map { _.jar.getName }
 			
