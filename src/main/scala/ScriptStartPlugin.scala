@@ -60,10 +60,10 @@ object ScriptStartPlugin extends Plugin {
 		extras:Traversable[(File,String)],
 		output:File
 	):File = {
-		streams.log info ("building scriptstart app in " + output)
+		streams.log info s"building scriptstart app in ${output}"
 		
 		val assetDir	= output / libName
-		streams.log info ("copying assets to " + assetDir)
+		streams.log info s"copying assets to ${assetDir}"
 		assetDir.mkdirs()
 		val assetsToCopy	=
 				for {
@@ -74,11 +74,11 @@ object ScriptStartPlugin extends Plugin {
 				yield (source, target)
 		val assetsCopied	= IO copy assetsToCopy
 		
-		streams.log info ("copying extras to " + output)
+		streams.log info s"copying extras to ${output}"
 		val extrasToCopy	= extras map { case (file,path) => (file, output / path) }
 		val extrasCopied	= IO copy extrasToCopy
 		
-		streams.log info ("creating scripts in " + output)
+		streams.log info s"creating scripts in ${output}"
 		val scripts	= configs flatMap { config =>
 			val assetNames	= assets map { _.jar.getName }
 			
@@ -100,7 +100,7 @@ object ScriptStartPlugin extends Plugin {
 			scripts
 		}
 		
-		streams.log info ("cleaning up")
+		streams.log info "cleaning up"
 		val allFiles	= (output ** (-DirectoryFilter)).get.toSet
 		val obsolete	= allFiles -- scripts -- assetsCopied -- extrasCopied
 		IO delete obsolete
