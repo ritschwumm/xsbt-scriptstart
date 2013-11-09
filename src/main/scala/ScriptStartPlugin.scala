@@ -155,11 +155,11 @@ object ScriptStartPlugin extends Plugin {
 		)
 	)
 		
-	// BETTER use a base directory like in unixStartScript
+	// TODO set scriptstart.base
 	private def windowsStartScript(data:ScriptData):String	= template(
 		Map(
 			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base=$BASE"),
+			"baseProperty"	-> windowsQuote("-Dscriptstart.base="),
 			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
 			"mainClassName"	-> windowsQuote(data.mainClassName),
 			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
@@ -172,11 +172,11 @@ object ScriptStartPlugin extends Plugin {
 		))
 	)
 	
-	// BETTER use a base directory like in unixStartScript
+	// TODO set scriptstart.base
 	private def os2StartScript(data:ScriptData):String	= template(
 		Map(
 			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base=$BASE"),
+			"baseProperty"	-> windowsQuote("-Dscriptstart.base="),
 			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
 			"mainClassName"	-> windowsQuote(data.mainClassName),
 			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
@@ -188,16 +188,19 @@ object ScriptStartPlugin extends Plugin {
 		))
 	) 
 	
+	//------------------------------------------------------------------------------
+	//## script helper
+	
 	private val Strip	= """^\s*\|\t(.*)$""".r
 	
 	private def strip(s:String):String	= 
 			lines(s) collect { case Strip(it) => it } mkString "\n"
 	
-	private def lines(s:String):Iterator[String]	=
-			(s:scala.collection.immutable.WrappedString).lines
+	private def lines(s:String):Seq[String]	=
+			(s:scala.collection.immutable.WrappedString).lines.toVector
 			
-	private def template(args:Iterable[Pair[String,String]], s:String):String	= 
-			args.toList.foldLeft(s) { case (s,(k,v)) => s replace ("{{"+k+"}}", v) }
+	private def template(args:Iterable[(String,String)], s:String):String	= 
+			(args.toList foldLeft s) { case (s,(k,v)) => s replace ("{{"+k+"}}", v) }
 			
 	private def windowsLF(s:String):String	= 
 			s replace ("\n", "\r\n")
