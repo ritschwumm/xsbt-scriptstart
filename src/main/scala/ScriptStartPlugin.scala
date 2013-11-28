@@ -34,24 +34,23 @@ object ScriptStartPlugin extends Plugin {
 	lazy val scriptstartSettings:Seq[Def.Setting[_]]	= 
 			classpathSettings ++
 			Vector(
-				scriptstartBuild	<<= buildTask,
+				scriptstartBuild	:=
+						buildTaskImpl(
+							streams	= Keys.streams.value,
+							assets	= classpathAssets.value,
+							configs	= scriptstartConfigs.value,
+							extras	= scriptstartExtras.value,
+							output	= scriptstartOutput.value
+						),
 				scriptstartConfigs	:= Seq.empty,
 				scriptstartExtras	:= Seq.empty,
-				scriptstartOutput	<<= Keys.crossTarget { _ / "scriptstart" }
+				scriptstartOutput	:= Keys.crossTarget.value / "scriptstart"
 			)
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
 	private val libName	= "lib"
-	
-	private def buildTask:Def.Initialize[Task[File]] = (
-		Keys.streams,
-		classpathAssets,
-		scriptstartConfigs,
-		scriptstartExtras,
-		scriptstartOutput
-	) map buildTaskImpl
 	
 	private def buildTaskImpl(
 		streams:TaskStreams,	
@@ -83,7 +82,13 @@ object ScriptStartPlugin extends Plugin {
 				configs flatMap { config =>
 					val assetNames	= assets map { _.jar.getName }
 					
-					val scriptData	= ScriptData(config.vmArguments,	assetNames,	config.mainClass, config.mainArguments)
+					val scriptData	= 
+							ScriptData(
+								config.vmArguments,
+								assetNames,	
+								config.mainClass,
+								config.mainArguments
+							)
 					
 					def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
 						val content	= mkScript(scriptData)
