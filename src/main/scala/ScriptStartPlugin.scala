@@ -33,7 +33,7 @@ object ScriptStartPlugin extends Plugin {
 
 	lazy val scriptstartSettings:Seq[Def.Setting[_]]	= 
 			classpathSettings ++
-			Seq(
+			Vector(
 				scriptstartBuild	<<= buildTask,
 				scriptstartConfigs	:= Seq.empty,
 				scriptstartExtras	:= Seq.empty,
@@ -79,26 +79,27 @@ object ScriptStartPlugin extends Plugin {
 		val extrasCopied	= IO copy extrasToCopy
 		
 		streams.log info s"creating scripts in ${output}"
-		val scripts	= configs flatMap { config =>
-			val assetNames	= assets map { _.jar.getName }
-			
-			val scriptData	= ScriptData(config.vmArguments,	assetNames,	config.mainClass, config.mainArguments)
-			
-			def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
-				val content	= mkScript(scriptData)
-				var	target	= output / (config.scriptName + suffix)
-				IO write (target, content)
-				target
-			}
-			
-			val scripts	= Seq(
-				writeScript("",		unixStartScript),
-				writeScript(".bat",	windowsStartScript),
-				writeScript(".cmd",	os2StartScript)
-			)
-			scripts foreach { _ setExecutable (true, false) }
-			scripts
-		}
+		val scripts	=
+				configs flatMap { config =>
+					val assetNames	= assets map { _.jar.getName }
+					
+					val scriptData	= ScriptData(config.vmArguments,	assetNames,	config.mainClass, config.mainArguments)
+					
+					def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
+						val content	= mkScript(scriptData)
+						var	target	= output / (config.scriptName + suffix)
+						IO write (target, content)
+						target
+					}
+					
+					val scripts	= Seq(
+						writeScript("",		unixStartScript),
+						writeScript(".bat",	windowsStartScript),
+						writeScript(".cmd",	os2StartScript)
+					)
+					scripts foreach { _ setExecutable (true, false) }
+					scripts
+				}
 		
 		streams.log info "cleaning up"
 		val allFiles	= (output ** (-DirectoryFilter)).get.toSet
