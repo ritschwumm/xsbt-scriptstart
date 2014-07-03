@@ -22,19 +22,15 @@ object ScriptStartPlugin extends Plugin {
 		mainArguments:Seq[String]	= Seq.empty
 	)
 	
-	// complete build, returns the created directory
-	val scriptstartBuild	= TaskKey[File]("scriptstart")
-	// one or more startscripts to be generated
-	val scriptstartConfigs	= TaskKey[Seq[ScriptConfig]]("scriptstart-configs")
-	// additional resources as a task to allow inclusion of packaged wars etc.
-	val scriptstartExtras	= TaskKey[Traversable[(File,String)]]("scriptstart-extras")
-	// where to put starts scripts, jar files and extra files
-	val scriptstartOutput	= SettingKey[File]("scriptstart-output")
+	val scriptstart			= taskKey[File]("complete build, returns the created directory")
+	val scriptstartConfigs	= taskKey[Seq[ScriptConfig]]("one or more startscripts to be generated")
+	val scriptstartExtras	= taskKey[Traversable[(File,String)]]("additional resources as a task to allow inclusion of packaged wars etc.")
+	val scriptstartOutput	= settingKey[File]("where to put starts scripts, jar files and extra files")
 
 	lazy val scriptstartSettings:Seq[Def.Setting[_]]	= 
 			classpathSettings ++
 			Vector(
-				scriptstartBuild	:=
+				scriptstart	:=
 						buildTaskImpl(
 							streams	= Keys.streams.value,
 							assets	= classpathAssets.value,
@@ -99,8 +95,7 @@ object ScriptStartPlugin extends Plugin {
 					
 					val scripts	= Seq(
 						writeScript("",		unixStartScript),
-						writeScript(".bat",	windowsStartScript),
-						writeScript(".cmd",	os2StartScript)
+						writeScript(".bat",	windowsStartScript)
 					)
 					scripts foreach { _ setExecutable (true, false) }
 					scripts
@@ -176,21 +171,6 @@ object ScriptStartPlugin extends Plugin {
 			"""
 		))
 	)
-	
-	private def os2StartScript(data:ScriptData):String	= template(
-		Map(
-			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base=."),
-			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
-			"mainClassName"	-> windowsQuote(data.mainClassName),
-			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
-		),
-		windowsLF(strip(
-			"""
-			|	java {{vmArguments}} {{baseProperty}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} %*
-			"""
-		))
-	) 
 	
 	//------------------------------------------------------------------------------
 	//## script helper
