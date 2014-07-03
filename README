@@ -12,7 +12,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.15.0")
+    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.16.0")
     
 Include the plugin in you project's build.sbt:
 
@@ -26,3 +26,10 @@ Include the plugin in you project's build.sbt:
 
 Run the scriptstart task to get a directory containing all dependencies of 
 your project together with startscripts for linux, os x, windows and os/2.
+
+To create a zip file from the application, you can use the xsbt-zipper plugin:
+
+    // scriptstart::zipper
+    inTask(scriptstartBuild)(zipperSettings ++ Seq(
+        zipperFiles := selectSubpaths(scriptstartBuild.value, -DirectoryFilter).toSeq
+    ))

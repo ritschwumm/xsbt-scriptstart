@@ -4,7 +4,7 @@ name			:= "xsbt-scriptstart"
 
 organization	:= "de.djini"
 
-version			:= "0.15.0"
+version			:= "0.16.0"
 
 addSbtPlugin("de.djini" % "xsbt-classpath" % "0.8.0")
 

@@ -161,11 +161,10 @@ object ScriptStartPlugin extends Plugin {
 		)
 	)
 		
-	// TODO set scriptstart.base
 	private def windowsStartScript(data:ScriptData):String	= template(
 		Map(
 			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base="),
+			"baseProperty"	-> windowsQuote("-Dscriptstart.base=."),
 			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
 			"mainClassName"	-> windowsQuote(data.mainClassName),
 			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
@@ -178,11 +177,10 @@ object ScriptStartPlugin extends Plugin {
 		))
 	)
 	
-	// TODO set scriptstart.base
 	private def os2StartScript(data:ScriptData):String	= template(
 		Map(
 			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base="),
+			"baseProperty"	-> windowsQuote("-Dscriptstart.base=."),
 			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
 			"mainClassName"	-> windowsQuote(data.mainClassName),
 			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
