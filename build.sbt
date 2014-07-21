@@ -4,9 +4,9 @@ name			:= "xsbt-scriptstart"
 
 organization	:= "de.djini"
 
-version			:= "0.17.0"
+version			:= "0.18.0"
 
-addSbtPlugin("de.djini" % "xsbt-classpath" % "0.9.0")
+addSbtPlugin("de.djini" % "xsbt-classpath" % "0.10.0")
 
 scalacOptions	++= Seq(
 	"-deprecation",
