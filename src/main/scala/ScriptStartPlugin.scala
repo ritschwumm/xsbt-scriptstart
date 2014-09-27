@@ -15,11 +15,13 @@ object ScriptStartPlugin extends Plugin {
 		// name of the generated start scripts
 		scriptName:String,
 		// passed to the VM from the start script
-		vmArguments:Seq[String]		= Seq.empty,
+		vmOptions:Seq[String]				= Seq.empty,
+		// passed as -D arguments to the VM
+		systemProperties:Map[String,String]	= Map.empty,
 		// name of the class the script should run
 		mainClass:String,
 		// arguments given to the main class
-		mainArguments:Seq[String]	= Seq.empty
+		prefixArguments:Seq[String]			= Seq.empty
 	)
 	
 	val scriptstart			= taskKey[File]("complete build, returns the created directory")
@@ -80,10 +82,11 @@ object ScriptStartPlugin extends Plugin {
 					
 					val scriptData	= 
 							ScriptData(
-								config.vmArguments,
-								assetNames,	
-								config.mainClass,
-								config.mainArguments
+								vmOptions			= config.vmOptions,
+								systemProperties	= config.systemProperties,
+								classPath			= assetNames,	
+								mainClass			= config.mainClass,
+								prefixArguments		= config.prefixArguments
 							)
 					
 					def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
@@ -113,67 +116,72 @@ object ScriptStartPlugin extends Plugin {
 	//## script generation
 	
 	private case class ScriptData(
-		vmArguments:Seq[String], 
+		vmOptions:Seq[String],
+		systemProperties:Map[String,String],
 		classPath:Seq[String],
-		mainClassName:String,
-		mainArguments:Seq[String]
+		mainClass:String,
+		prefixArguments:Seq[String]
 	)
 	
 	// export LC_CTYPE="en_US.UTF-8"
-	private def unixStartScript(data:ScriptData):String	= template(
-		Map(
-			"vmArguments"	-> (data.vmArguments map unixQuote mkString " "),
-			"baseProperty"	-> unixSoftQuote("-Dscriptstart.base=$BASE"),
-			"classPath"		-> (data.classPath map { libName + "/" + _ } map unixQuote map { unixSoftQuote("$BASE") + "/" + _ } mkString ":"),
-			"mainClassName"	-> unixQuote(data.mainClassName),
-			"mainArguments"	-> (data.mainArguments map unixQuote mkString " ")
-		),
+	private def unixStartScript(data:ScriptData):String	= {
+		val baseFinder	=
+				"""
+				|	# find this script's directory
+				|	if which realpath >/dev/null; then
+				|		BASE="$(dirname "$(realpath "$0")")"
+				|	elif which readlink >/dev/null; then
+				|		pushd >/dev/null .
+				|		cur="$0"
+				|		while [ -n "$cur" ]; do
+				|			dir="$(dirname "$cur")"
+				|			[ -n "$dir" ] && cd "$dir"
+				|			cur="$(readlink "$(basename "$cur")")"
+				|		done
+				|		BASE="$PWD"
+				|		popd >/dev/null
+				|	elif which perl >/dev/null; then
+				|		BASE="$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
+				|	else
+				|		BASE="$(dirname "$0")"
+				|	fi
+				"""
+		val vmOptions			= data.vmOptions map unixHardQuote mkString " "
+		val systemProperties	= data.systemProperties map (systemProperty.tupled) map unixSoftQuote mkString " "
+		val baseProperty		= unixHardQuote(systemProperty("scriptstart.base", "$BASE"))
+		val classPath			= data.classPath map { libName + "/" + _ } map unixHardQuote map { unixSoftQuote("$BASE") + "/" + _ } mkString ":"
+		val mainClass			= unixHardQuote(data.mainClass)
+		val prefixArguments		= data.prefixArguments map unixHardQuote mkString " "
+		val passArguments		= unixSoftQuote("$@")
 		strip(
-			"""
+			s"""
 			|	#!/bin/bash
 			|	
-			|	# find this script's directory
-			|	if which realpath >/dev/null; then
-			|		BASE="$(dirname "$(realpath "$0")")"
-			|	elif which readlink >/dev/null; then
-			|		pushd >/dev/null .
-			|		cur="$0"
-			|		while [ -n "$cur" ]; do
-			|			dir="$(dirname "$cur")"
-			|			[ -n "$dir" ] && cd "$dir"
-			|			cur="$(readlink "$(basename "$cur")")"
-			|		done
-			|		BASE="$PWD"
-			|		popd
-			|	elif which perl >/dev/null; then
-			|		BASE="$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
-			|	else
-			|		BASE="$(dirname "$0")"
-			|	fi
+			${baseFinder}
 			|	
-			|	exec java {{vmArguments}} {{baseProperty}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} "$@"
+			|	exec java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
 			"""
 		)
-	)
+	}
 		
-	private def windowsStartScript(data:ScriptData):String	= template(
-		Map(
-			"vmArguments"	-> (data.vmArguments map windowsQuote mkString " "),
-			"baseProperty"	-> windowsQuote("-Dscriptstart.base=."),
-			"classPath"		-> windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";"),
-			"mainClassName"	-> windowsQuote(data.mainClassName),
-			"mainArguments"	-> (data.mainArguments	map windowsQuote mkString " ")
-		),
+	private def windowsStartScript(data:ScriptData):String	= {
+		val vmOptions			= data.vmOptions map windowsQuote mkString " "
+		val systemProperties	= data.systemProperties map (systemProperty.tupled) map windowsQuote mkString " "
+		val baseProperty		= windowsQuote(systemProperty("scriptstart.base", "."))
+		val classPath			= windowsQuote(data.classPath map { libName + "\\" + _ } mkString ";")
+		val mainClass			= windowsQuote(data.mainClass)
+		val prefixArguments		= data.prefixArguments map windowsQuote mkString " "
+		val passArguments		= "%*"
 		windowsLF(strip(
-			"""
+			s"""
 			|	cd /d %~dp0%
-			|	java {{vmArguments}} {{baseProperty}} -cp {{classPath}} {{mainClassName}} {{mainArguments}} %*
+			|	java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
 			"""
 		))
-	)
+	}
 	
 	//------------------------------------------------------------------------------
-	//## script helper
+	//## formatting helper
 	
 	private val Strip	= """^\s*\|\t(.*)$""".r
 	
@@ -183,13 +191,13 @@ object ScriptStartPlugin extends Plugin {
 	private def lines(s:String):Seq[String]	=
 			(s:scala.collection.immutable.WrappedString).lines.toVector
 			
-	private def template(args:Iterable[(String,String)], s:String):String	= 
-			(args.toList foldLeft s) { case (s,(k,v)) => s replace ("{{"+k+"}}", v) }
-			
+	//------------------------------------------------------------------------------
+	//## quoting helper
+	
 	private def windowsLF(s:String):String	= 
 			s replace ("\n", "\r\n")
 			
-	private def unixQuote(s:String):String	= 
+	private def unixHardQuote(s:String):String	= 
 			"'" + (s replace ("'", "\\'")) + "'"
 			
 	private def unixSoftQuote(s:String):String	= 
@@ -197,4 +205,7 @@ object ScriptStartPlugin extends Plugin {
 			
 	private def windowsQuote(s:String):String	= 
 			"\"" + (s replace ("\"", "\"\"")) + "\""
+		
+	private val systemProperty:(String,String)=>String	=
+			(key:String, value:String) => s"-D${key}=${value}"
 }
