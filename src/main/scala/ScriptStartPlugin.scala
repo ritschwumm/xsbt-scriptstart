@@ -147,8 +147,8 @@ object ScriptStartPlugin extends Plugin {
 				|	fi
 				"""
 		val vmOptions			= data.vmOptions map unixHardQuote mkString " "
-		val systemProperties	= data.systemProperties map (systemProperty.tupled) map unixSoftQuote mkString " "
-		val baseProperty		= unixHardQuote(systemProperty("scriptstart.base", "$BASE"))
+		val systemProperties	= data.systemProperties map (systemProperty.tupled) map unixHardQuote mkString " "
+		val baseProperty		= unixSoftQuote(systemProperty("scriptstart.base", "$BASE"))
 		val classPath			= data.classPath map { libName + "/" + _ } map unixHardQuote map { unixSoftQuote("$BASE") + "/" + _ } mkString ":"
 		val mainClass			= unixHardQuote(data.mainClass)
 		val prefixArguments		= data.prefixArguments map unixHardQuote mkString " "
