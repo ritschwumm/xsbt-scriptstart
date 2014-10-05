@@ -12,7 +12,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-scriptstart" % "0.19.1")
+    addSbtPlugin("de.djini" % "xsbt-scriptstart" % <version>)
     
 Include the plugin in your project's build.sbt:
 
