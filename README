@@ -16,8 +16,6 @@ Add the plugin to your project in project/plugins.sbt:
     
 Include the plugin in your project's build.sbt:
 
-    scriptstartSettings
-
     scriptstartConfigs  := Seq(ScriptConfig(
         scriptName  = "my", 
         vmOptions	= Seq("-Xmx192m"),

@@ -1,19 +1,14 @@
+package xsbtScriptStart
+
 import sbt._
 
-import Keys.Classpath
 import Keys.TaskStreams
-import Project.Initialize
-import classpath.ClasspathUtilities
 
-import ClasspathPlugin._
 import xsbtUtil._
+import xsbtClasspath.{ Asset => ClasspathAsset, ClasspathPlugin }
+import xsbtClasspath.Import.classpathAssets
 
-object ScriptStartPlugin extends Plugin {
-	private val libName	= "lib"
-	
-	//------------------------------------------------------------------------------
-	//## exported
-	
+object Import {
 	case class ScriptConfig(
 		// name of the generated start scripts
 		scriptName:String,
@@ -32,8 +27,25 @@ object ScriptStartPlugin extends Plugin {
 	val scriptstartExtras		= taskKey[Traversable[PathMapping]]("additional resources as a task to allow inclusion of packaged wars etc.")
 	val scriptstartTargetDir	= settingKey[File]("where to put starts scripts, jar files and extra files")
 
-	lazy val scriptstartSettings:Seq[Def.Setting[_]]	= 
-			classpathSettings ++
+}
+
+object ScriptStartPlugin extends AutoPlugin {
+	//------------------------------------------------------------------------------
+	//## constants
+	
+	private val libName	= "lib"
+	
+	//------------------------------------------------------------------------------
+	//## exports
+	
+	override def requires:Plugins		= ClasspathPlugin
+	
+	override def trigger:PluginTrigger	= allRequirements
+
+	lazy val autoImport	= Import
+	import autoImport._
+	
+	override def projectSettings:Seq[Def.Setting[_]]	=
 			Vector(
 				scriptstart	:=
 						buildTask(
