@@ -1,6 +1,6 @@
 A startscript plugin for sbt
 
-To build this code, get and install SBT from 
+To build this code, get and install SBT from
     https://github.com/sbt/sbt
 
 Get and install this plugin before building:
@@ -10,19 +10,19 @@ Build and publish the plugin:
     git clone git@github.com:ritschwumm/xsbt-scriptstart.git
     cd xsbt-scriptstart
     sbt publish-local
-    
+
 Add the plugin to your project in project/plugins.sbt:
     addSbtPlugin("de.djini" % "xsbt-scriptstart" % <version>)
-    
+
 Include the plugin in your project's build.sbt:
 
     scriptstartConfigs  := Seq(ScriptConfig(
-        scriptName  = "my", 
+        scriptName  = "my",
         vmOptions	= Seq("-Xmx192m"),
         mainClass   = "my.Main"
     ))
 
-Run the scriptstart task to get a directory containing all dependencies of 
+Run the scriptstart task to get a directory containing all dependencies of
 your project together with startscripts for linux, os x, windows and os/2.
 
 To create a zip file from the application, you can use the xsbt-zipper plugin:

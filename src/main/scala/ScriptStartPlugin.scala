@@ -110,7 +110,7 @@ object ScriptStartPlugin extends AutoPlugin {
 				configs flatMap { config =>
 					val assetNames	= assets map { _.jar.getName }
 					
-					val scriptData	= 
+					val scriptData	=
 							ScriptData(
 								vmOptions			= config.vmOptions,
 								systemProperties	= config.systemProperties,
