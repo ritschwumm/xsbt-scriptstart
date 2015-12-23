@@ -222,10 +222,10 @@ object ScriptStartPlugin extends AutoPlugin {
 		val passArguments		= "%*"
 		
 		val fullScript	=
-			s"""
-			|	cd /d %~dp0%
-			|	java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
-			"""
+				s"""
+				|	cd /d %~dp0%
+				|	java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
+				"""
 			
 		xu.script windowsLF (xu.text stripped fullScript)
 	}
