@@ -108,7 +108,7 @@ object ScriptStartPlugin extends AutoPlugin {
 		streams.log info s"creating scripts in ${appDir}"
 		val scripts	=
 				configs flatMap { config =>
-					val assetNames	= assets map { _.jar.getName }
+					val assetNames	= assets map { _.name }
 					
 					val scriptData	=
 							ScriptData(
