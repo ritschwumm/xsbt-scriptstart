@@ -56,32 +56,32 @@ object ScriptStartPlugin extends AutoPlugin {
 	override val trigger:PluginTrigger	= noTrigger
 
 	override lazy val projectSettings:Seq[Def.Setting[_]]	=
-			Vector(
-				scriptstart	:=
-						buildTask(
-							streams		= Keys.streams.value,
-							assets		= classpathAssets.value,
-							configs		= scriptstartConfigs.value,
-							extras		= scriptstartExtras.value,
-							appDir		= scriptstartAppDir.value
-						),
-				scriptstartAppDir		:= scriptstartBuildDir.value / scriptstartPackageName.value,
+		Vector(
+			scriptstart	:=
+				buildTask(
+					streams		= Keys.streams.value,
+					assets		= classpathAssets.value,
+					configs		= scriptstartConfigs.value,
+					extras		= scriptstartExtras.value,
+					appDir		= scriptstartAppDir.value
+				),
+			scriptstartAppDir		:= scriptstartBuildDir.value / scriptstartPackageName.value,
 
-				scriptstartZip	:=
-						zipTask(
-							streams		= Keys.streams.value,
-							appDir		= scriptstart.value,
-							prefix		= scriptstartPackageName.value,
-							appZip		= scriptstartAppZip.value
-						),
-				scriptstartAppZip		:= scriptstartBuildDir.value / (scriptstartPackageName.value + ".zip"),
+			scriptstartZip	:=
+				zipTask(
+					streams		= Keys.streams.value,
+					appDir		= scriptstart.value,
+					prefix		= scriptstartPackageName.value,
+					appZip		= scriptstartAppZip.value
+				),
+			scriptstartAppZip		:= scriptstartBuildDir.value / (scriptstartPackageName.value + ".zip"),
 
-				scriptstartPackageName	:= Keys.name.value + "-" + Keys.version.value,
-				scriptstartConfigs		:= Seq.empty,
-				scriptstartExtras		:= Seq.empty,
+			scriptstartPackageName	:= Keys.name.value + "-" + Keys.version.value,
+			scriptstartConfigs		:= Seq.empty,
+			scriptstartExtras		:= Seq.empty,
 
-				scriptstartBuildDir		:= Keys.crossTarget.value / "scriptstart"
-			)
+			scriptstartBuildDir		:= Keys.crossTarget.value / "scriptstart"
+		)
 
 	//------------------------------------------------------------------------------
 	//## tasks
@@ -107,32 +107,32 @@ object ScriptStartPlugin extends AutoPlugin {
 
 		streams.log info s"creating scripts in ${appDir}"
 		val scripts	=
-				configs flatMap { config =>
-					val assetNames	= assets map { _.name }
+			configs flatMap { config =>
+				val assetNames	= assets map { _.name }
 
-					val scriptData	=
-							ScriptData(
-								vmOptions			= config.vmOptions,
-								systemProperties	= config.systemProperties,
-								classPath			= assetNames,
-								mainClass			= config.mainClass,
-								prefixArguments		= config.prefixArguments
-							)
+				val scriptData	=
+						ScriptData(
+							vmOptions			= config.vmOptions,
+							systemProperties	= config.systemProperties,
+							classPath			= assetNames,
+							mainClass			= config.mainClass,
+							prefixArguments		= config.prefixArguments
+						)
 
-					def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
-						val content	= mkScript(scriptData)
-						var	target	= appDir / (config.scriptName + suffix)
-						IO write (target, content)
-						target
-					}
-
-					val scripts	= Seq(
-						writeScript("",		unixStartScript),
-						writeScript(".bat",	windowsStartScript)
-					)
-					scripts foreach { _ setExecutable (true, false) }
-					scripts
+				def writeScript(suffix:String, mkScript:ScriptData=>String):File	= {
+					val content	= mkScript(scriptData)
+					var	target	= appDir / (config.scriptName + suffix)
+					IO write (target, content)
+					target
 				}
+
+				val scripts	= Seq(
+					writeScript("",		unixStartScript),
+					writeScript(".bat",	windowsStartScript)
+				)
+				scripts foreach { _ setExecutable (true, false) }
+				scripts
+			}
 
 		streams.log info "cleaning up"
 		val allFiles	= (xu.find files appDir).toSet
@@ -171,26 +171,26 @@ object ScriptStartPlugin extends AutoPlugin {
 	// export LC_CTYPE="en_US.UTF-8"
 	private def unixStartScript(data:ScriptData):String	= {
 		val baseFinder	=
-				"""
-				|	# find this script's directory
-				|	if which realpath >/dev/null; then
-				|		BASE="$(dirname "$(realpath "$0")")"
-				|	elif which readlink >/dev/null; then
-				|		pushd >/dev/null .
-				|		cur="$0"
-				|		while [ -n "$cur" ]; do
-				|			dir="$(dirname "$cur")"
-				|			[ -n "$dir" ] && cd "$dir"
-				|			cur="$(readlink "$(basename "$cur")")"
-				|		done
-				|		BASE="$PWD"
-				|		popd >/dev/null
-				|	elif which perl >/dev/null; then
-				|		BASE="$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
-				|	else
-				|		BASE="$(dirname "$0")"
-				|	fi
-				"""
+			"""
+			|	# find this script's directory
+			|	if which realpath >/dev/null; then
+			|		BASE="$(dirname "$(realpath "$0")")"
+			|	elif which readlink >/dev/null; then
+			|		pushd >/dev/null .
+			|		cur="$0"
+			|		while [ -n "$cur" ]; do
+			|			dir="$(dirname "$cur")"
+			|			[ -n "$dir" ] && cd "$dir"
+			|			cur="$(readlink "$(basename "$cur")")"
+			|		done
+			|		BASE="$PWD"
+			|		popd >/dev/null
+			|	elif which perl >/dev/null; then
+			|		BASE="$(dirname "$(echo "$0" | perl -ne 'use Cwd "abs_path";chomp;print abs_path($_) . "\n"')")"
+			|	else
+			|		BASE="$(dirname "$0")"
+			|	fi
+			"""
 
 		val vmOptions			= data.vmOptions map xu.script.unixHardQuote mkString " "
 		val systemProperties	= xu.script systemProperties data.systemProperties map xu.script.unixHardQuote mkString " "
@@ -201,13 +201,13 @@ object ScriptStartPlugin extends AutoPlugin {
 		val passArguments		= xu.script unixSoftQuote "$@"
 
 		val fullScript	=
-				s"""
-				|	#!/bin/bash
-				|
-				${baseFinder}
-				|
-				|	exec java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
-				"""
+			s"""
+			|	#!/bin/bash
+			|
+			${baseFinder}
+			|
+			|	exec java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
+			"""
 
 		xu.text stripped fullScript
 	}
@@ -222,10 +222,10 @@ object ScriptStartPlugin extends AutoPlugin {
 		val passArguments		= "%*"
 
 		val fullScript	=
-				s"""
-				|	cd /d %~dp0%
-				|	java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
-				"""
+			s"""
+			|	cd /d %~dp0%
+			|	java ${vmOptions} ${systemProperties} ${baseProperty} -cp ${classPath} ${mainClass} ${prefixArguments} ${passArguments}
+			"""
 
 		xu.script windowsLF (xu.text stripped fullScript)
 	}
